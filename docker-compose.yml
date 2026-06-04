@@ -1,0 +1,48 @@
+# ============================================
+# AI工作台 - 全栈 Docker Compose 部署
+# designed by Leo Young in Shenzhen China
+# ============================================
+version: '3.8'
+
+services:
+  # 后端 API 服务
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-workbench-api
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./server/data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - JWT_SECRET=${JWT_SECRET:-change-me}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - KIMI_API_KEY=${KIMI_API_KEY:-}
+      - GLM_API_KEY=${GLM_API_KEY:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/health',r=>{process.exit(r.statusCode===200?0:1)})"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # 前端 (Nginx 反代 + 静态文件)
+  frontend:
+    image: nginx:alpine
+    container_name: ai-workbench-frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./client/dist:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # 可选：Nginx 反向代理 (前后端一体)
+  # 如果不用上面的 frontend 容器，可以直接用 api 提供静态文件
